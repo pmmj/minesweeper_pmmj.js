@@ -1,18 +1,34 @@
-let grid;
+const grid = [];
+let cellsHidden = [];
+let firstClick = false;
 
 const startPosX = 32;
 const startPosY = 32;
-const sqrX = 10;
-const sqrY = 10;
+const sqrX = 5;
+const sqrY = 5;
+const numOfMines = 4;
 const clickStates = {
   REVEAL : "reveal",
   FLAG : "flag"
 };
+const gameStates = {
+  PLAYING : "playing",
+  WIN : "win",
+  LOSE : "lose"
+};
+
+const clicks = [];
+const flags = [];
+const mines = [];
+const mineChar = -1;
+const mineClicked = -2;
+let gameState = gameStates.PLAYING;
 let currentClickState = clickStates.REVEAL;
 
 function preload() {
   imgFlag = loadImage("images/flag.png");
   imgMine = loadImage("images/mine.png");
+  imgMineRed = loadImage("images/mine_red.png");
   imgDigits = [null, loadImage("images/digit1.png"),
   loadImage("images/digit2.png"),
   loadImage("images/digit3.png"),
@@ -21,30 +37,59 @@ function preload() {
   loadImage("images/digit6.png"),
   loadImage("images/digit7.png"),
   loadImage("images/digit8.png")];
+  imgCellHidden = loadImage("images/cell_hidden.png");
+  imgCellRevealed = loadImage("images/cell_revealed.png");
+
 
 
 }
-
 function setup() {
   createCanvas(640, 1024);
-  grid = generateMines(10, sqrY, sqrX);
+  noStroke();
+  for (let hi = 0; hi < sqrY; hi++) {
+    let vector = [];
+    for (let wi = 0; wi < sqrX; wi++) {
+      vector.push(0);
+      cellsHidden.push(hi * sqrY + wi);
+    }
+    grid.push(vector);
+  }
+
+  //[grid, cellsHidden] = generateMines(7, sqrY, sqrX);
   console.log(grid);
 
 }
 
 function draw() {
+
+  if (gameState === gameStates.PLAYING) {
   drawGrid(startPosX, startPosY, sqrY, sqrX);
   drawButtons(startPosX + 500, startPosY + 200, 100, 25);
+} else if (gameState === gameStates.WIN) {
+  //drawGrid(startPosX, startPosY, sqrY, sqrX)
+  fill(150,150,150);
+  rect(startPosX + 500, startPosY + 200, 100, 25);
+  fill(0,255,0);
+  text("YOU WON!", startPosX + 500, startPosY + 212);
+} else if (gameState === gameStates.LOSE) {
+  drawGrid(startPosX, startPosY, sqrY, sqrX);
+  fill(150,150,150);
+  rect(startPosX + 500, startPosY + 200, 100, 25);
+  fill(255,0,0);
+  text("GAME OVER", startPosX + 500, startPosY + 212);
+}
+
+if (clicks.length === ((sqrY * sqrX) - numOfMines) && gameState === gameStates.PLAYING) {
+  gameState = gameStates.WIN;
+  console.log(clicks);
+}
   //drawMines(32, 32, 32, 32, 480, 480);
+
 
 
 }
 
-const clicks = [];
-const flags = [];
-const mines = [];
-const cellsHidden = [];
-const mineChar = -1;
+
 
 
 
@@ -55,7 +100,7 @@ function highlightSquare(x, y, a, b, w, h) {
     let snapX = Math.floor((mouseX-x) /(w/b));
     let snapY = Math.floor((mouseY-y)/(h/a));
     console.log(snapX, snapY);
-    drawSquare(x + snapX * (w/b), y + snapY * (h/a), color(0, 0, 255),  w/b, h/a);
+    //drawSquare(x + snapX * (w/b), y + snapY * (h/a), color(0, 0, 255),  w/b, h/a);
     let u = snapX + (snapY * a);
 
     // from (i, j) -> k
@@ -63,13 +108,28 @@ function highlightSquare(x, y, a, b, w, h) {
     //    i = k//b
     //    j = k % a
     //console.log(u);
+    if (mouseIsPressed && !firstClick) {
+      firstClick = true;
+      cellsHidden = generateMines(numOfMines, grid, a, b, u);
+    }
+
     if (mouseIsPressed && currentClickState === clickStates.REVEAL && !(clicks.includes(u)) ) {
       clicks.push( u );
       if (flags.includes(u)) {
         flags.splice(flags.indexOf(u), 1);
       }
+      if (cellsHidden.includes(u)) {
+        cellsHidden.splice(cellsHidden.indexOf(u), 1);
+      }
       if (grid[snapY][snapX] === 0) {
         drawAllContiguousEmptySquares(snapX, snapY, a, b);
+      } else if (grid[snapY][snapX] === mineChar) {
+        grid[snapY][snapX] = mineClicked;
+        cellsHidden = [];
+        gameState = gameStates.LOSE;
+        while (clicks.length > 0) clicks.pop();
+        for (let i = 0; i < a*b; i++) clicks.push(i);
+
       }
       //console.log(clicks);
     }
@@ -88,17 +148,22 @@ function clickedSquares(x, y, a, b, w, h) {
     let xx = ~~(clicks[i] % b);
     let yy = ~~(clicks[i] / a);
     //debugger;
-
+    image(imgCellRevealed, x + xx * (w/b), y + yy * (h/a), w/b, h/a);
     if (grid[yy][xx] === mineChar) {
       // fill(255, 0, 0);
       // rect(x + xx * (w/b), y + yy * (h/a), w/b, h/a);
       image(imgMine, x + xx * (w/b), y + yy * (h/a), w/b, h/a);
+    } else if (grid[yy][xx] === mineClicked) {
+      image(imgMineRed, x + xx * (w/b), y + yy * (h/a), w/b, h/a);
+      // fill(255,0,0);
+      // rect(x + xx * (w/b), y + yy * (h/a), w/b, h/a);
+      // image(imgMine, x + xx * (w/b), y + yy * (h/a), w/b, h/a);
     } else if (grid[yy][xx] > 0) {
       // fill(255, 0, 255);
       // text(grid[yy][xx], x + (xx + 1/2) * (w/b), y + (yy + 1) * (h/a));
       image(imgDigits[grid[yy][xx]], x + xx * (w/b), y + yy * (h/a), w/b, h/a);
     } else if (grid[yy][xx] === 0) {
-      drawSquare(x + xx * (w/b), y + yy * (h/a), color(60, 255, 0),  w/b, h/a);
+      //drawSquare(x + xx * (w/b), y + yy * (h/a), color(60, 255, 0),  w/b, h/a);
     }
     //
   }
@@ -111,18 +176,19 @@ function drawSquare(x, y, c, w, h) {
 
 function drawGrid(x, y, a=1, b=1, w=480, h=480) {
   if (mouseX > x && mouseX < x+w && mouseY > y && mouseY < y+h) {
-    fill(color(255, 255, 255));
-    rect(x, y, w, h);
+    // fill(color(255, 255, 255));
+    // rect(x, y, w, h);
 
     highlightSquare(x, y, a, b, w, h);
 
-    for (let i = 0; i <= a; i++) {
-      line(x, y + i * (h / a), x+w, y + i * (h / a));
-    }
-    for (let i = 0; i <= b; i++) {
-      line(x + i * (w / b), y, x + i * (w / b), y + h);
-    }
+    // for (let i = 0; i <= a; i++) {
+    //   line(x, y + i * (h / a), x+w, y + i * (h / a));
+    // }
+    // for (let i = 0; i <= b; i++) {
+    //   line(x + i * (w / b), y, x + i * (w / b), y + h);
+    // }
     clickedSquares(x, y, a, b, w, h);
+    drawHiddenCells(x, y, a, b, w, h);
     drawFlags(x, y, a, b, w, h);
     //drawMines(x, y, a, b, w, h);
   }
@@ -168,22 +234,28 @@ function drawGrid(x, y, a=1, b=1, w=480, h=480) {
 //   }
 // }
 
-function generateMines(nMines, a, b) {
-  const listOfMines = [];
+function generateMines(nMines, listOfMines, a, b, exclusion) {
+  //const listOfMines = [];
   const randomMap = [];
+  const ch = []; //cells hidden
   const pattern = [-1, 0, 1, -1, 1, 0, -1, 1];
 
   for (let i = 0; i < a; i++) {
     let sub = [];
     for (let j = 0; j < b; j++) {
       sub.push(0);
-      randomMap.push(i * a + j);
+      let u = i * a + j;
+      if (u !== exclusion && exclusion % b !== 0 && u !== exclusion-1
+    && (exclusion+1) % b !== 0 && u !== exclusion + 1
+  && exclusion >= sqrX && u !== exclusion-sqrX && exclusion < sqrX * (sqrY - 2) && u !== exclusion + sqrX) randomMap.push(u);
+      ch.push(i * a + j);
     }
-    listOfMines.push(sub);
+    //listOfMines.push(sub);
   }
   for (let i = 0; i < nMines; i++) {
     let rIndex = Math.floor(Math.random() * (randomMap.length + 1));
     let j = randomMap[rIndex];
+    console.log("MINE", j);
     let curX = j % b;
     let curY = ~~(j / a); // int cast is a double NOT
     listOfMines[curY][curX] = mineChar;
@@ -191,10 +263,10 @@ function generateMines(nMines, a, b) {
     for (let i = 0; i < 8; i++) {
       let dx = curX + pattern[i];
       let dy = curY + pattern[(i + 2) % 8];
-      console.log("STATS", dy, dx);
+      //console.log("STATS", dy, dx);
       if (dy >= 0 && dy < a && dx >= 0 && dx < b && listOfMines[dy][dx] !== mineChar) {
            listOfMines[dy][dx] += 1;
-           console.log(dy, dx, listOfMines[dy][dx]);
+           //console.log(dy, dx, listOfMines[dy][dx]);
          }
     }
 
@@ -204,7 +276,7 @@ function generateMines(nMines, a, b) {
   for (let i = 0; i < a; i++) {
     console.log(listOfMines[i]);
   }
-  return listOfMines;
+  return ch;
 }
 
 function drawMines(x, y, a, b, w, h) {
@@ -239,10 +311,12 @@ function drawAllContiguousEmptySquares(x, y, a, b) {
         if (grid[dy][dx] === 0) {
           stack.push(dy * a + dx);
         } else {
-          clicks.push(dy * a + dx);
+          if (!(clicks.includes(dy * a + dx))) clicks.push(dy * a + dx);
+          if (cellsHidden.includes(dy * a + dx)) cellsHidden.splice(cellsHidden.indexOf(dy * a + dx), 1);
         }
 
         searched.push(dy * a + dx);
+
         //clicks.push(dy * a + dx);
       }
     }
@@ -250,7 +324,10 @@ function drawAllContiguousEmptySquares(x, y, a, b) {
     if (flags.includes(currentSpot)) {
       flags.splice(flags.indexOf(currentSpot), 1);
     }
-    clicks.push(currentSpot);
+    if (cellsHidden.includes(currentSpot)) {
+      cellsHidden.splice(cellsHidden.indexOf(currentSpot), 1);
+    }
+    if (!(clicks.includes(currentSpot))) clicks.push(currentSpot);
   }
 }
 
@@ -300,5 +377,13 @@ function drawFlags(x, y, a, b, w, h) {
     let xx = ~~(flags[i] % b);
     let yy = ~~(flags[i] / a);
     image(imgFlag, x + xx * (w/b), y + yy * (h/a), w/b, h/a);
+  }
+}
+
+function drawHiddenCells(x, y, a, b, w, h) {
+  for (let i = 0; i < cellsHidden.length; i++) {
+    let xx = ~~(cellsHidden[i] % b);
+    let yy = ~~(cellsHidden[i] / a);
+    image(imgCellHidden, x + xx * (w/b), y + yy * (h/a), w/b, h/a);
   }
 }
